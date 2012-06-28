@@ -49,6 +49,8 @@ def post_comment(request, content_type_id, object_id, form_class=CommentForm):
                 "status": "ERROR",
                 "errors": form.errors
             }), mimetype="application/json")
+        else:
+            return HttpResponse('invalid POST', 400)
     redirect_to = request.POST.get("next")
     # light security check -- make sure redirect_to isn't garbage.
     if not redirect_to or " " in redirect_to or redirect_to.startswith("http"):

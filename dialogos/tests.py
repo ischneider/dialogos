@@ -1,13 +1,16 @@
-from django.conf import settings
 from django.template import Template, Context
+
+from django.core.urlresolvers import reverse
 
 from django.contrib.auth.models import User
 from django.contrib.contenttypes.models import ContentType
 
-from eldarion.test import TestCase
+from django.test import TestCase
 
-from dialogos.forms import UnauthenticatedCommentForm, AuthenticatedCommentForm
+from dialogos.forms import CommentForm
 from dialogos.models import Comment
+
+from contextlib import contextmanager
 
 
 class CommentTests(TestCase):
@@ -15,17 +18,28 @@ class CommentTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user("gimli", "myaxe@dwarf.org", "gloin")
         self.user2 = User.objects.create_user("aragorn", "theking@gondor.gov", "strider")
-    
+        
     def assert_renders(self, tmpl, context, value):
         tmpl = Template(tmpl)
         self.assertEqual(tmpl.render(context), value)
+        
+    @contextmanager
+    def login(self, user, passwd):
+        self.assertTrue(self.client.login(username=user, password=passwd))
+        yield
+        self.client.logout()
     
     def post_comment(self, obj, data):
-        return self.post("post_comment",
+        kwargs = dict(
             content_type_id=ContentType.objects.get_for_model(obj).pk,
             object_id=obj.pk,
-            data=data
         )
+        path = reverse('post_comment', kwargs=kwargs)
+        return self.client.post(path, data)
+    
+    def post(self, name, **kwargs):
+        path = reverse(name, kwargs=kwargs)
+        return self.client.post(path)
     
     def test_post_comment(self):
         g = User.objects.create(username="Gandalf")
@@ -123,7 +137,7 @@ class CommentTests(TestCase):
             c,
             ""
         )
-        self.assertTrue(isinstance(c["comment_form"], UnauthenticatedCommentForm))
+        self.assertTrue(isinstance(c["comment_form"], CommentForm))
         
         with self.login("gimli", "gloin"):
             c = Context({"o": g, "user": self.user})
@@ -132,7 +146,7 @@ class CommentTests(TestCase):
                 c,
                 ""
             )
-            self.assertTrue(isinstance(c["comment_form"], AuthenticatedCommentForm))
+            self.assertTrue(isinstance(c["comment_form"], CommentForm))
     
     def test_ttag_comment_target(self):
         g = User.objects.create(username="legolas")
