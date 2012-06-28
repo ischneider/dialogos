@@ -1,9 +1,12 @@
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
+from django.core.exceptions import PermissionDenied
 try:
     from django.utils.importlib import import_module
 except ImportError:
     from importlib import import_module
+    
+from functools import partial
 
 
 def load_path_attr(path):
@@ -28,19 +31,27 @@ def default_can_edit(user, comment):
     return user == comment.author
 
 
-def load_can_delete():
-    import_path = getattr(settings, "COMMENTS_CAN_DELETE_CALLABLE", None)
+def default_can_post(user, obj):
+    '''Check whether the provided user can post a comment to the specified 
+    object. The protocol is to raise an PermissionDenied exception if not
+    allowed with the message set to the appropriate user facing explaination.
     
-    if import_path is None:
-        return default_can_delete
-    
-    return load_path_attr(import_path)
+    This default simply disables anonymous comments.
+    '''
+    if not user.is_authenticated():
+        raise PermissionDenied('Anonymous comments disabled')
 
 
-def load_can_edit():
-    import_path = getattr(settings, "COMMENTS_CAN_EDIT_CALLABLE", None)
-    
-    if import_path is None:
-        return default_can_edit
-    
-    return load_path_attr(import_path)
+def _load_callable(settings_key, default):
+    import_path = getattr(settings, settings_key, None)
+    return load_path_attr(import_path) if import_path else default
+
+
+load_can_post = partial(_load_callable, 'COMMENTS_CAN_POST_CALLABLE',
+                        default_can_post)
+                               
+load_can_delete = partial(_load_callable, 'COMMENTS_CAN_DELETE_CALLABLE',
+                          default_can_delete)
+
+load_can_edit = partial(_load_callable, 'COMMENTS_CAN_EDIT_CALLABLE',
+                        default_can_edit)

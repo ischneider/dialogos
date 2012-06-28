@@ -1,3 +1,4 @@
+import os.path
 #!/usr/bin/env python
 import os
 import sys
@@ -18,8 +19,12 @@ if not settings.configured:
             "django.contrib.auth",
             "django.contrib.contenttypes",
             "django.contrib.sessions",
+            "mptt",
             "dialogos",
-        ]
+        ],
+        TEMPLATE_DIRS=(
+            os.path.dirname(os.path.abspath(__file__)) + "/dialogos/templates",
+        ),
     )
 
 

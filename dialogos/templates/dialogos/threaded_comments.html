@@ -1,0 +1,33 @@
+{% load mptt_tags %}
+{% load dialogos_tags %}
+<div class="comments">
+{% if why_cant_user_post %}
+<p>{{ why_cant_user_post }}</p>
+{% else %}
+<a href="{% comment_target comment_object %}">Comment</a>
+{% endif %}
+<ul>
+{% recursetree comments %}
+    <li>
+        <div>
+            {% if node.author %}
+            <a href="{{ node.author.get_absolute_url }}">{{ node.author }}</a>
+            {% else %}
+            <span>{{ node.name }}</span>
+            {% endif %}
+        </div>
+        {{ node.comment|linebreaks }}
+        <div>
+            {% if user_can_post %}
+            <a href="{{ node.reply_url }}">Reply</a>
+            {% endif %}
+        </div>
+        {% if not node.is_leaf_node %}
+            <ul class="children">
+            {{ children }}
+            </ul>
+        {% endif %}
+    </li>
+{% endrecursetree %}
+</ul>
+</div>

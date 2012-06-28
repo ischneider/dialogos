@@ -1,15 +1,21 @@
 from django import template
+from django.core.exceptions import PermissionDenied
 from django.core.urlresolvers import reverse
+from django.template import loader
+from django.template import RequestContext
 
 from django.contrib.contenttypes.models import ContentType
 
-from dialogos.authorization import load_can_delete, load_can_edit
+from dialogos.authorization import load_can_delete
+from dialogos.authorization import load_can_edit
+from dialogos.authorization import load_can_post
 from dialogos.forms import CommentForm
 from dialogos.models import Comment
 
 
 can_delete = load_can_delete()
 can_edit = load_can_edit()
+can_post = load_can_post()
 register = template.Library()
 
 
@@ -97,6 +103,44 @@ class CommentTargetNode(BaseCommentNode):
             "content_type_id": ContentType.objects.get_for_model(obj).pk,
             "object_id": obj.pk
         })
+        
+
+class ThreadedCommentsNode(BaseCommentNode):
+    '''
+    Simple, probably not very useful template intended for replacement. Either
+    override the default template or provide a more specific one on a tag-by-tag
+    basis.
+    '''
+    
+    requires_as_var = False
+    template_name = "dialogos/threaded_comments.html"
+    
+    def render(self, context):
+        comments = self.get_comments(context)
+        obj = self.obj.resolve(context)
+        user = context.get("user")
+        user_can_post = True
+        why_cant_user_post = None
+        try:
+            can_post(user, obj)
+        except PermissionDenied, pd:
+            user_can_post = False
+            why_cant_user_post = pd.message
+            
+        # allow for a missing request to support internal tests
+        request = context.get('request', None)
+        context = {
+            'comment_object' : obj,
+            'comments' : comments,
+            'user_can_post' : user_can_post,
+            'why_cant_user_post' : why_cant_user_post
+        }
+        # if not a request context, the csrf_token will not render - critical
+        # for any template replacement that has an inline form.
+        if request:
+            context = RequestContext(request, context)
+            
+        return loader.render_to_string(self.template_name, context)
 
 
 @register.tag
@@ -142,3 +186,13 @@ def comment_target(parser, token):
         {% comment_target obj [as varname] %}
     """
     return CommentTargetNode.handle_token(parser, token)
+
+
+@register.tag
+def threaded_comments(parser, token):
+    """
+    Usage:
+        
+        {% threaded_comments obj %}
+    """
+    return ThreadedCommentsNode.handle_token(parser, token)
